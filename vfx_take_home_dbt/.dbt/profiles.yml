@@ -1,0 +1,14 @@
+vfx_take_home_dbt_profile:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE') }}"
+      database: vfx_take_home_database
+      warehouse: vfx_take_home_warehouse
+      schema: raw
+      threads: 1
+      client_session_keep_alive: False

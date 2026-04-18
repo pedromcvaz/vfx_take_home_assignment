@@ -1,0 +1,432 @@
+version: 1
+
+models:
+  - name: master_users
+    description: "Canonical user dimension with deduplication, customer segmentation, and GDPR compliance support"
+    config:
+      contract:
+        enforced: true
+    meta: # I saw that it was a best practice to include some meta-data when working with dbt across multiple teams
+      owner: "data_engineering"
+      contains_pii: true # I thought that this can be useful for GDPR deletes
+    columns:
+      - name: user_master_id
+        description: "Deterministic GUID serving as surrogate key for user dimension"
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+
+      - name: source_user_id
+        description: "Natural key - original user ID from source system"
+        data_type: varchar
+        tests:
+          - not_null
+          - unique
+
+      - name: first_purchase_date
+        description: "Date of customer's first transaction"
+        data_type: date
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "<= current_date()"
+
+      - name: last_purchase_date
+        description: "Date of customer's most recent transaction"
+        data_type: date
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= first_purchase_date"
+          - dbt_utils.expression_is_true:
+              expression: "<= current_date()"
+
+      - name: total_orders
+        description: "Lifetime count of orders placed by customer"
+        data_type: number
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+
+      - name: lifetime_value_inr
+        description: "Total revenue from customer in original source currency (INR)"
+        data_type: number
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: categories_purchased
+        description: "Count of distinct product categories purchased"
+        data_type: number
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0 and <= total_orders"
+
+      - name: customer_segment
+        description: "RFM-based customer segmentation (VIP, LOYAL, REPEAT, NEW)"
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['VIP', 'LOYAL', 'REPEAT', 'NEW']
+
+      - name: source_system
+        description: "Source system identifier for data lineage"
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['RAW_ECOMMERCE_DATA']
+
+      - name: last_loaded_at
+        description: "Most recent source load timestamp for this user"
+        data_type: timestamp_ntz
+        tests:
+          - not_null
+
+      - name: dbt_valid_from
+        description: "Timestamp when this record version became active (SCD2 support)"
+        data_type: timestamp_ntz
+        tests:
+          - not_null
+
+      - name: dbt_valid_to
+        description: "Timestamp when this record version became inactive (NULL = current)"
+        data_type: timestamp_ntz
+
+      - name: is_current
+        description: "Flag indicating current/active record version"
+        data_type: boolean
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+
+      - name: is_deleted
+        description: "GDPR deletion flag - true if user requested data deletion"
+        data_type: boolean
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+
+      - name: deleted_at
+        description: "Timestamp of GDPR deletion request"
+        data_type: timestamp_ntz
+
+      - name: deleted_reason
+        description: "Reason for data deletion request (NULL if not deleted)"
+        data_type: varchar
+        tests:
+          - accepted_values:
+              values:
+                - 'USER_REQUEST'
+                - 'ACCOUNT_CLOSURE'
+                - 'REGULATORY_REQUIREMENT'
+                - 'DATA_RETENTION_POLICY'
+                - 'LEGAL_OBLIGATION'
+              config:
+                where: "is_deleted = true"  # Only validate when deleted
+                severity: warn
+
+  - name: master_products
+    description: "Canonical product dimension with attribute normalization and SCD2 preparation"
+    config:
+      contract:
+        enforced: true
+    meta:
+      owner: "data_engineering"
+      scd_type: "type_2_candidates"
+    columns:
+      - name: product_master_id
+        description: "Deterministic GUID serving as surrogate key for product dimension"
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+
+      - name: source_product_id
+        description: "Natural key - original product ID from source system"
+        data_type: varchar
+        tests:
+          - not_null
+          - unique
+
+      - name: category_original
+        description: "Original category value from source system (preserved for audit)"
+        data_type: varchar
+
+      - name: category
+        description: "Normalized product category using standardized taxonomy"
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['ELECTRONICS', 'CLOTHING', 'HOME_GOODS', 'BOOKS', 'SPORTS', 'BEAUTY', 'FOOD', 'OTHER']
+              quote: false
+
+      - name: times_sold
+        description: "Total number of times this product has been purchased"
+        data_type: number
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+
+      - name: unique_customers
+        description: "Count of distinct customers who purchased this product"
+        data_type: number
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0 and <= times_sold"
+
+      - name: avg_price_inr
+        description: "Average list price in source currency (INR)"
+        data_type: number
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+
+      - name: avg_discount_pct
+        description: "Average discount percentage offered on this product"
+        data_type: number
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0 and <= 100"
+              config:
+                severity: warn
+
+      - name: first_sold_date
+        description: "Date this product first appeared in transactions"
+        data_type: date
+        tests:
+          - not_null
+
+      - name: last_sold_date
+        description: "Date this product last appeared in transactions"
+        data_type: date
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= first_sold_date"
+
+      - name: product_tier
+        description: "Sales volume classification (BEST_SELLER, POPULAR, REGULAR, LOW_VOLUME)"
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['BEST_SELLER', 'POPULAR', 'REGULAR', 'LOW_VOLUME']
+
+      - name: source_system
+        description: "Source system identifier for data lineage"
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['RAW_ECOMMERCE_DATA']
+
+      - name: last_seen_at
+        description: "Most recent source load timestamp for this product"
+        data_type: timestamp_ntz
+        tests:
+          - not_null
+
+      - name: dbt_valid_from
+        description: "SCD2: Timestamp when this record version became active"
+        data_type: timestamp_ntz
+        tests:
+          - not_null
+
+      - name: dbt_valid_to
+        description: "SCD2: Timestamp when this record version became inactive (NULL = current)"
+        data_type: timestamp_ntz
+
+      - name: is_current
+        description: "SCD2: Flag indicating current/active record version"
+        data_type: boolean
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+
+  - name: master_orders
+    description: "Canonical order fact table with multi-currency support and late-arrival handling preparation"
+    config:
+      contract:
+        enforced: true
+    meta:
+      owner: "data_engineering"
+      grain: "one row per transaction"
+    columns:
+      - name: order_master_id
+        description: "Deterministic GUID serving as surrogate key for order fact"
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+
+      - name: source_transaction_id
+        description: "Natural key - original transaction ID from source system"
+        data_type: varchar
+        tests:
+          - not_null
+          - unique
+
+      - name: user_master_id
+        description: "Foreign key to master_users"
+        data_type: varchar
+        tests:
+          - not_null
+          - relationships:
+              to: ref('master_users')
+              field: user_master_id
+
+      - name: product_master_id
+        description: "Foreign key to master_products"
+        data_type: varchar
+        tests:
+          - not_null
+          - relationships:
+              to: ref('master_products')
+              field: product_master_id
+
+      - name: order_date
+        description: "Date when order was placed"
+        data_type: date
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "<= current_date()"
+
+      - name: payment_method
+        description: "Payment method used for transaction"
+        data_type: varchar
+        tests:
+          - accepted_values:
+              values: ['CREDIT CARD', 'DEBIT CARD', 'PAYPAL', 'CASH', 'BANK TRANSFER', 'UPI', 'NET BANKING', 'WALLET']
+              config:
+                severity: warn
+
+      - name: product_category
+        description: "Denormalized product category for analytical convenience"
+        data_type: varchar
+        tests:
+          - accepted_values:
+              values: ['ELECTRONICS', 'CLOTHING', 'HOME_GOODS', 'BOOKS', 'SPORTS', 'BEAUTY', 'FOOD', 'OTHER']
+              quote: false
+
+      - name: original_price_inr
+        description: "Original list price in source currency (INR)"
+        data_type: number
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+
+      - name: final_price_inr
+        description: "Final transaction price in source currency (INR)"
+        data_type: number
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+          - dbt_utils.expression_is_true:
+              expression: "<= original_price_inr"
+
+      - name: discount_percentage
+        description: "Discount percentage applied to transaction"
+        data_type: number
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0 and <= 100"
+
+      - name: price_usd
+        description: "List price converted to USD (intermediate conversion from INR)"
+        data_type: number
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+
+      - name: final_price_usd
+        description: "Final price in USD"
+        data_type: number
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+
+      - name: price_gbp
+        description: "List price in GBP (reporting currency)"
+        data_type: number
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+
+      - name: final_price_gbp
+        description: "Final transaction price in GBP (reporting currency)"
+        data_type: number
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+          - dbt_utils.expression_is_true:
+              expression: "<= price_gbp"
+
+      - name: discount_amount_gbp
+        description: "Discount amount in reporting currency (GBP)"
+        data_type: number
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: reporting_currency
+        description: "Standard reporting currency code"
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['GBP']
+
+      - name: order_status
+        description: "Current order status (simplified - would track transitions in production)"
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['COMPLETED', 'PENDING', 'CANCELLED', 'REFUNDED']
+
+      - name: source_system
+        description: "Source system identifier for data lineage"
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['RAW_ECOMMERCE_DATA']
+
+      - name: source_loaded_at
+        description: "Original ETL load timestamp from source"
+        data_type: timestamp_ntz
+        tests:
+          - not_null
+
+      - name: dbt_processed_at
+        description: "Timestamp when dbt initially processed this record"
+        data_type: timestamp_ntz
+        tests:
+          - not_null
+
+      - name: dbt_updated_at
+        description: "Timestamp of most recent dbt update (for late-arriving updates)"
+        data_type: timestamp_ntz
+        tests:
+          - not_null

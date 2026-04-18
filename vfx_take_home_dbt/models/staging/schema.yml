@@ -1,0 +1,117 @@
+version: 1
+
+sources:
+  - name: raw_ecommerce
+    description: "Raw e-commerce data landed via Fivetran-like ingestion"
+    database: VFX_TAKE_HOME_DATABASE
+    schema: raw
+    tables:
+      - name: RAW_ECOMMERCE_DATA
+        description: "Transaction-level e-commerce data from source system"
+        columns:
+          - name: USER_ID
+            description: "Source system user identifier"
+            tests:
+              - not_null
+
+          - name: PRODUCT_ID
+            description: "Source system product identifier"
+            tests:
+              - not_null
+
+          - name: PURCHASE_DATE
+            description: "Transaction purchase date (YYYY-MM-DD format)"
+            tests:
+              - not_null
+
+          - name: CATEGORY
+            description: "Product category from source system"
+
+          - name: PRICE_RS
+            description: "Original list price (assuming USD per requirements)"
+            tests:
+              - not_null
+
+          - name: DISCOUNT
+            description: "Discount percentage applied to transaction"
+
+          - name: FINAL_PRICE_RS
+            description: "Final transaction price after discount (USD)"
+            tests:
+              - not_null
+
+          - name: PAYMENT_METHOD
+            description: "Payment method used for transaction"
+
+          - name: LOADED_AT
+            description: "ETL load timestamp from ingestion tool"
+            tests:
+              - not_null
+
+models:
+  - name: stg_ecommerce__transactions
+    description: "Staging layer for e-commerce transactions with type casting, cleaning, and deterministic keys"
+    columns:
+      - name: transaction_id
+        description: "Deterministic GUID generated from transaction attributes"
+        tests:
+          - unique
+          - not_null
+
+      - name: user_id
+        description: "Cleaned and standardized user identifier"
+        tests:
+          - not_null
+
+      - name: product_id
+        description: "Cleaned and standardized product identifier"
+        tests:
+          - not_null
+
+      - name: purchase_date
+        description: "Transaction date cast to DATE type"
+        tests:
+          - not_null
+
+      - name: category_raw
+        description: "Product category, cleaned but not normalized"
+
+      - name: payment_method
+        description: "Payment method, standardized to uppercase"
+        tests:
+          - accepted_values:
+              values: ['CREDIT CARD', 'DEBIT CARD', 'PAYPAL', 'CASH', 'BANK TRANSFER', 'UPI', 'NET BANKING', 'WALLET']
+              config:
+                severity: warn  # Warn instead of fail for new payment methods
+
+      - name: price
+        description: "Original list price in USD (currency suffix removed for multi-currency support)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+
+      - name: discount_percentage
+        description: "Discount percentage (0-100)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "BETWEEN 0 AND 100"
+              config:
+                severity: warn
+
+      - name: final_price
+        description: "Final transaction price in USD"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: loaded_at
+        description: "Source ETL load timestamp"
+        tests:
+          - not_null
+
+      - name: dbt_processed_at
+        description: "Timestamp when dbt processed this record"
+        tests:
+          - not_null
