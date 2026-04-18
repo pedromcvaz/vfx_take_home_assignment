@@ -34,11 +34,29 @@ cleaned as (
 
         -- Product attributes
         trim(upper(PRODUCT_ID)) as product_id,
-        trim(upper(CATEGORY)) as category_raw,
+        -- Standardize category values
+        case
+            when CATEGORY = 'Beauty' then 'BEAUTY'
+            when CATEGORY = 'Books' then 'BOOKS'
+            when CATEGORY = 'Clothing' then 'CLOTHING'
+            when CATEGORY = 'Electronics' then 'ELECTRONICS'
+            when CATEGORY = 'Home & Kitchen' then 'HOME_AND_KITCHEN'
+            when CATEGORY = 'Sports' then 'SPORTS'
+            when CATEGORY = 'Toys' then 'TOYS'
+            else 'OTHER'
+        end as category,
 
         -- Transaction attributes
         to_date(PURCHASE_DATE, 'DD-MM-YYYY') as purchase_date,
-        trim(upper(PAYMENT_METHOD)) as payment_method,
+        -- Standardize category values
+        case
+            when PAYMENT_METHOD = 'Cash on Delivery' then 'CASH_ON_DELIVERY'
+            when PAYMENT_METHOD = 'Credit Card' then 'CREDIT_CARD'
+            when PAYMENT_METHOD = 'Debit Card' then 'DEBIT_CARD'
+            when PAYMENT_METHOD = 'Net Banking' then 'NET_BANKING'
+            when PAYMENT_METHOD = 'UPI ' then 'UPI'
+            else trim(upper(PAYMENT_METHOD))
+        end as payment_method,
 
         -- Monetary values (in USD as per challenge instructions)
         -- I chose not to mention the currency in the column name as in a real scenario we might want to add support for
@@ -50,7 +68,7 @@ cleaned as (
 
         -- Metadata
         to_timestamp(LOADED_AT) as loaded_at,
-        current_timestamp() as dbt_processed_at
+        current_timestamp()::timestamp_ntz as dbt_processed_at
 
     from source_data
 )

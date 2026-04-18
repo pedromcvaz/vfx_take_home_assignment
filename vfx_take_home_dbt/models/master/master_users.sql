@@ -21,7 +21,7 @@ with user_transactions as (
 user_master as (
     select
         -- Deterministic master key
-        {{ generate_deterministic_guid(['user_id']) }} as user_master_id,
+        {{ dbt_utils.generate_surrogate_key(['user_id']) }} as user_master_id,
 
         -- Natural key
         user_id as source_user_id,
@@ -44,7 +44,7 @@ user_master as (
         'RAW_ECOMMERCE_DATA' as source_system,
         last_loaded_at,
         -- I've added these as SCD2 support columns
-        current_timestamp() as dbt_valid_from,
+        current_timestamp()::timestamp_ntz as dbt_valid_from,
         null::timestamp as dbt_valid_to,
         true as is_current,
 

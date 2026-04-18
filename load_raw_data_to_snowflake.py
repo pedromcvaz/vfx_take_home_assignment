@@ -107,7 +107,7 @@ def load_raw_data(csv_path):
     # Add ingestion timestamp
     df['LOADED_AT'] = pd.Timestamp.now()
 
-    print(f"\n✓ Loaded raw data:")
+    print(f"\nLoaded raw data:")
     print(f"  • Rows: {df.shape[0]:,}")
     print(f"  • Columns: {list(df.columns)}")
 
@@ -125,7 +125,7 @@ def create_raw_schema(conn):
     try:
         cursor.execute(f"USE DATABASE {SNOWFLAKE_CONFIG['database']}")
         cursor.execute("CREATE SCHEMA IF NOT EXISTS raw")
-        print("✓ Schema 'raw' ready")
+        print("Schema 'raw' ready")
     finally:
         cursor.close()
 
@@ -154,9 +154,9 @@ def upload_to_snowflake(conn, df, table_name):
     )
 
     if success:
-        print(f"✓ Loaded {nrows:,} rows into {table_name}")
+        print(f"Loaded {nrows:,} rows into {table_name}")
     else:
-        print(f"✗ Failed to load {table_name}")
+        print(f"Failed to load {table_name}")
 
     return success
 
@@ -181,16 +181,16 @@ def main():
 
     # Download and load data
     dataset_path = download_dataset()
-    print(f"✓ Dataset downloaded to {dataset_path}")
+    print(f"Dataset downloaded to {dataset_path}")
 
     csv_file = get_csv_file(dataset_path)
-    print(f"✓ Found CSV file: {csv_file.name}")
+    print(f"Found CSV file: {csv_file.name}")
 
     df = load_raw_data(csv_file)
 
     # Connect to Snowflake
     conn = snowflake.connector.connect(**SNOWFLAKE_CONFIG)
-    print(f"✓ Connected to Snowflake ({SNOWFLAKE_CONFIG['database']}.{SNOWFLAKE_CONFIG['schema']})")
+    print(f"Connected to Snowflake ({SNOWFLAKE_CONFIG['database']}.{SNOWFLAKE_CONFIG['schema']})")
 
     try:
         # Load data
@@ -198,9 +198,9 @@ def main():
         upload_to_snowflake(conn, df, 'RAW_ECOMMERCE_DATA')
 
         print("\n" + "="*60)
-        print("✓ Pipeline completed successfully!")
-        print("✓ Raw data loaded into RAW.RAW_ECOMMERCE_DATA")
-        print("✓ Ready for transformation in dbt")
+        print("Pipeline completed successfully!")
+        print("Raw data loaded into RAW.RAW_ECOMMERCE_DATA")
+        print("Ready for transformation in dbt")
         print("="*60)
 
     finally:

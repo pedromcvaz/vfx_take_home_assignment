@@ -1,4 +1,4 @@
-name: 'ecommerce_master'
+name: 'vfx_take_home_assignment'
 version: '1.0.0'
 config-version: 2
 
@@ -9,14 +9,19 @@ seed-paths: ["seeds"]
 macro-paths: ["macros"]
 
 models:
-  ecommerce_master:
+  vfx_take_home_assignment:
     staging:
       +materialized: view
       +schema: staging
-    marts:
+    master:
       +materialized: table
-      +schema: marts
+      +schema: master
 
 seeds:
-  ecommerce_master:
-    +schema: seeds
+  vfx_take_home_assignment:
+    exchange_rates:
+      +column_types:
+        rate: float
+        effective_date: date
+
+

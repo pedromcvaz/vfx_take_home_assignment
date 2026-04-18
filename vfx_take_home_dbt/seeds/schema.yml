@@ -1,0 +1,27 @@
+version: 2
+
+seeds:
+  - name: exchange_rates
+    description: >
+      Foreign exchange rates for currency conversion.
+      Currently contains USD to GBP conversion rates.
+    columns:
+      - name: currency_from
+        description: Source currency code (ISO 4217)
+        tests:
+          - not_null
+      - name: currency_to
+        description: Target currency code (ISO 4217)
+        tests:
+          - not_null
+      - name: rate
+        description: Conversion rate (multiply source amount by this)
+        tests:
+          - not_null
+      - name: effective_date
+        description: Date from which this rate is applicable
+        tests:
+          - not_null
+    tests:
+      - unique:
+          column_name: "currency_from || currency_to || effective_date"

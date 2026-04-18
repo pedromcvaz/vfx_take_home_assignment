@@ -73,14 +73,19 @@ models:
         tests:
           - not_null
 
-      - name: category_raw
-        description: "Product category, cleaned but not normalized"
+      - name: category
+        description: "Product category, cleaned and normalized"
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['BEAUTY', 'BOOKS', 'CLOTHING', 'ELECTRONICS', 'HOME_AND_KITCHEN', 'SPORTS', 'TOYS', 'OTHER']
 
       - name: payment_method
         description: "Payment method, standardized to uppercase"
         tests:
           - accepted_values:
-              values: ['CREDIT CARD', 'DEBIT CARD', 'PAYPAL', 'CASH', 'BANK TRANSFER', 'UPI', 'NET BANKING', 'WALLET']
+              arguments:
+                values: ['CASH_ON_DELIVERY', 'CREDIT_CARD', 'DEBIT_CARD', 'NET_BANKING', 'UPI']
               config:
                 severity: warn  # Warn instead of fail for new payment methods
 
@@ -89,13 +94,15 @@ models:
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: "> 0"
+              arguments:
+                expression: "> 0"
 
       - name: discount_percentage
         description: "Discount percentage (0-100)"
         tests:
           - dbt_utils.expression_is_true:
-              expression: "BETWEEN 0 AND 100"
+              arguments:
+                expression: "BETWEEN 0 AND 100"
               config:
                 severity: warn
 
@@ -104,7 +111,8 @@ models:
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: ">= 0"
+              arguments:
+                expression: ">= 0"
 
       - name: loaded_at
         description: "Source ETL load timestamp"

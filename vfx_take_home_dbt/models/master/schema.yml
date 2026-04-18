@@ -6,9 +6,10 @@ models:
     config:
       contract:
         enforced: true
-    meta: # I saw that it was a best practice to include some meta-data when working with dbt across multiple teams
-      owner: "data_engineering"
-      contains_pii: true # I thought that this can be useful for GDPR deletes
+      meta: # I saw that it was a best practice to include some meta-data when working with dbt across multiple teams
+        owner: "data_engineering"
+        grain: "one row per user"
+        contains_pii: true # I thought that this can be useful for GDPR deletes
     columns:
       - name: user_master_id
         description: "Deterministic GUID serving as surrogate key for user dimension"
@@ -30,7 +31,8 @@ models:
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: "<= current_date()"
+              arguments:
+                expression: "<= current_date()"
 
       - name: last_purchase_date
         description: "Date of customer's most recent transaction"
@@ -38,9 +40,11 @@ models:
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: ">= first_purchase_date"
+              arguments:
+                expression: ">= first_purchase_date"
           - dbt_utils.expression_is_true:
-              expression: "<= current_date()"
+              arguments:
+                expression: "<= current_date()"
 
       - name: total_orders
         description: "Lifetime count of orders placed by customer"
@@ -48,23 +52,17 @@ models:
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: "> 0"
+              arguments:
+                expression: "> 0"
 
-      - name: lifetime_value_inr
-        description: "Total revenue from customer in original source currency (INR)"
-        data_type: number
+      - name: lifetime_value
+        description: "Total revenue from customer in original source currency (USD)"
+        data_type: float
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: ">= 0"
-
-      - name: categories_purchased
-        description: "Count of distinct product categories purchased"
-        data_type: number
-        tests:
-          - not_null
-          - dbt_utils.expression_is_true:
-              expression: "> 0 and <= total_orders"
+              arguments:
+                expression: ">= 0"
 
       - name: customer_segment
         description: "RFM-based customer segmentation (VIP, LOYAL, REPEAT, NEW)"
@@ -72,7 +70,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['VIP', 'LOYAL', 'REPEAT', 'NEW']
+              arguments:
+                values: ['VIP', 'LOYAL', 'REPEAT', 'NEW']
 
       - name: source_system
         description: "Source system identifier for data lineage"
@@ -80,7 +79,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['RAW_ECOMMERCE_DATA']
+              arguments:
+                values: ['RAW_ECOMMERCE_DATA']
 
       - name: last_loaded_at
         description: "Most recent source load timestamp for this user"
@@ -104,7 +104,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
 
       - name: is_deleted
         description: "GDPR deletion flag - true if user requested data deletion"
@@ -112,7 +113,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
 
       - name: deleted_at
         description: "Timestamp of GDPR deletion request"
@@ -122,13 +124,9 @@ models:
         description: "Reason for data deletion request (NULL if not deleted)"
         data_type: varchar
         tests:
-          - accepted_values:
-              values:
-                - 'USER_REQUEST'
-                - 'ACCOUNT_CLOSURE'
-                - 'REGULATORY_REQUIREMENT'
-                - 'DATA_RETENTION_POLICY'
-                - 'LEGAL_OBLIGATION'
+          - accepted_values: # Just some examples
+              arguments:
+                values: ['USER_REQUEST', 'ACCOUNT_CLOSURE', 'REGULATORY_REQUIREMENT', 'DATA_RETENTION_POLICY', 'LEGAL_OBLIGATION']
               config:
                 where: "is_deleted = true"  # Only validate when deleted
                 severity: warn
@@ -138,9 +136,10 @@ models:
     config:
       contract:
         enforced: true
-    meta:
-      owner: "data_engineering"
-      scd_type: "type_2_candidates"
+      meta:
+        owner: "data_engineering"
+        grain: "one row per product"
+        contains_pii: false
     columns:
       - name: product_master_id
         description: "Deterministic GUID serving as surrogate key for product dimension"
@@ -156,18 +155,11 @@ models:
           - not_null
           - unique
 
-      - name: category_original
-        description: "Original category value from source system (preserved for audit)"
-        data_type: varchar
-
       - name: category
-        description: "Normalized product category using standardized taxonomy"
+        description: "Product category"
         data_type: varchar
         tests:
           - not_null
-          - accepted_values:
-              values: ['ELECTRONICS', 'CLOTHING', 'HOME_GOODS', 'BOOKS', 'SPORTS', 'BEAUTY', 'FOOD', 'OTHER']
-              quote: false
 
       - name: times_sold
         description: "Total number of times this product has been purchased"
@@ -175,7 +167,8 @@ models:
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: "> 0"
+              arguments:
+                expression: "> 0"
 
       - name: unique_customers
         description: "Count of distinct customers who purchased this product"
@@ -183,22 +176,25 @@ models:
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: "> 0 and <= times_sold"
+              arguments:
+                expression: "between 0 and times_sold"
 
-      - name: avg_price_inr
-        description: "Average list price in source currency (INR)"
-        data_type: number
+      - name: avg_price
+        description: "Average list price in source currency (USD)"
+        data_type: float
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: "> 0"
+              arguments:
+                expression: "> 0"
 
       - name: avg_discount_pct
         description: "Average discount percentage offered on this product"
         data_type: number
         tests:
           - dbt_utils.expression_is_true:
-              expression: ">= 0 and <= 100"
+              arguments:
+                expression: "between 0 and 100"
               config:
                 severity: warn
 
@@ -214,15 +210,8 @@ models:
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: ">= first_sold_date"
-
-      - name: product_tier
-        description: "Sales volume classification (BEST_SELLER, POPULAR, REGULAR, LOW_VOLUME)"
-        data_type: varchar
-        tests:
-          - not_null
-          - accepted_values:
-              values: ['BEST_SELLER', 'POPULAR', 'REGULAR', 'LOW_VOLUME']
+              arguments:
+                expression: ">= first_sold_date"
 
       - name: source_system
         description: "Source system identifier for data lineage"
@@ -230,13 +219,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['RAW_ECOMMERCE_DATA']
-
-      - name: last_seen_at
-        description: "Most recent source load timestamp for this product"
-        data_type: timestamp_ntz
-        tests:
-          - not_null
+              arguments:
+                values: ['RAW_ECOMMERCE_DATA']
 
       - name: dbt_valid_from
         description: "SCD2: Timestamp when this record version became active"
@@ -254,16 +238,18 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
 
   - name: master_orders
     description: "Canonical order fact table with multi-currency support and late-arrival handling preparation"
     config:
       contract:
         enforced: true
-    meta:
-      owner: "data_engineering"
-      grain: "one row per transaction"
+      meta:
+        owner: "data_engineering"
+        grain: "one row per transaction"
+        contains_pii: false
     columns:
       - name: order_master_id
         description: "Deterministic GUID serving as surrogate key for order fact"
@@ -285,8 +271,9 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('master_users')
-              field: user_master_id
+              arguments:
+                to: ref('master_users')
+                field: user_master_id
 
       - name: product_master_id
         description: "Foreign key to master_products"
@@ -294,8 +281,9 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('master_products')
-              field: product_master_id
+              arguments:
+                to: ref('master_products')
+                field: product_master_id
 
       - name: order_date
         description: "Date when order was placed"
@@ -303,91 +291,75 @@ models:
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: "<= current_date()"
+              arguments:
+                expression: "<= current_date()"
 
       - name: payment_method
         description: "Payment method used for transaction"
-        data_type: varchar
-        tests:
-          - accepted_values:
-              values: ['CREDIT CARD', 'DEBIT CARD', 'PAYPAL', 'CASH', 'BANK TRANSFER', 'UPI', 'NET BANKING', 'WALLET']
-              config:
-                severity: warn
+        data_type: varchar # I didn't add any tests since this field was not altered from the stg table
 
       - name: product_category
         description: "Denormalized product category for analytical convenience"
-        data_type: varchar
-        tests:
-          - accepted_values:
-              values: ['ELECTRONICS', 'CLOTHING', 'HOME_GOODS', 'BOOKS', 'SPORTS', 'BEAUTY', 'FOOD', 'OTHER']
-              quote: false
+        data_type: varchar # I didn't add any tests since this field was not altered from the stg table
 
-      - name: original_price_inr
-        description: "Original list price in source currency (INR)"
-        data_type: number
+      - name: original_price
+        description: "Original list price in source currency (USD)"
+        data_type: float
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: "> 0"
+              arguments:
+                expression: "> 0"
 
-      - name: final_price_inr
-        description: "Final transaction price in source currency (INR)"
-        data_type: number
+      - name: original_final_price
+        description: "Final transaction price in source currency (USD)"
+        data_type: float
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: "> 0"
+              arguments:
+                expression: "> 0"
           - dbt_utils.expression_is_true:
-              expression: "<= original_price_inr"
+              arguments:
+                expression: "<= original_price"
 
       - name: discount_percentage
         description: "Discount percentage applied to transaction"
         data_type: number
         tests:
           - dbt_utils.expression_is_true:
-              expression: ">= 0 and <= 100"
-
-      - name: price_usd
-        description: "List price converted to USD (intermediate conversion from INR)"
-        data_type: number
-        tests:
-          - not_null
-          - dbt_utils.expression_is_true:
-              expression: "> 0"
-
-      - name: final_price_usd
-        description: "Final price in USD"
-        data_type: number
-        tests:
-          - not_null
-          - dbt_utils.expression_is_true:
-              expression: "> 0"
+              arguments:
+                expression: "between 0 and 100"
 
       - name: price_gbp
         description: "List price in GBP (reporting currency)"
-        data_type: number
+        data_type: float
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: "> 0"
+              arguments:
+                expression: "> 0"
 
       - name: final_price_gbp
         description: "Final transaction price in GBP (reporting currency)"
-        data_type: number
+        data_type: float
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: "> 0"
+              arguments:
+                expression: "> 0"
           - dbt_utils.expression_is_true:
-              expression: "<= price_gbp"
+              arguments:
+                expression: "<= price_gbp"
 
       - name: discount_amount_gbp
         description: "Discount amount in reporting currency (GBP)"
-        data_type: number
+        data_type: float
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: ">= 0"
+              arguments:
+                expression: ">= 0"
 
       - name: reporting_currency
         description: "Standard reporting currency code"
@@ -395,15 +367,17 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['GBP']
+              arguments:
+                values: ['GBP']
 
       - name: order_status
         description: "Current order status (simplified - would track transitions in production)"
-        data_type: varchar
+        data_type: varchar # I've added the test here since I've created this field in this model
         tests:
           - not_null
           - accepted_values:
-              values: ['COMPLETED', 'PENDING', 'CANCELLED', 'REFUNDED']
+              arguments:
+                values: ['COMPLETED', 'PENDING', 'CANCELLED', 'REFUNDED']
 
       - name: source_system
         description: "Source system identifier for data lineage"
@@ -411,7 +385,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['RAW_ECOMMERCE_DATA']
+              arguments:
+                values: ['RAW_ECOMMERCE_DATA']
 
       - name: source_loaded_at
         description: "Original ETL load timestamp from source"
