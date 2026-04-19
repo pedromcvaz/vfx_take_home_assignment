@@ -1,3 +1,6 @@
+-- I made this very basic macro that only takes the most recent conversion rate from the seed csv file
+-- In a real world scenario this could support multiple currencies and match the effective date with the purchase date
+
 {% macro get_conversion_rate(from_currency='USD', to_currency='GBP') %}
     (
         select rate

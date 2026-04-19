@@ -1,7 +1,7 @@
 {{
     config(
         materialized='table',
-        unique_key='user_master_id'
+        latest_version=1
     )
 }}
 

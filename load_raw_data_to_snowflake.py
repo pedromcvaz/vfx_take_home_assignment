@@ -2,24 +2,21 @@
 Kaggle E-Commerce Dataset Ingestion Pipeline
 
 This script downloads an e-commerce dataset from Kaggle and loads it into
-Snowflake's raw schema as-is, without any transformations or cleaning.
-All data transformations will be handled downstream in dbt.
-
-Requirements:
-    - SNOWFLAKE_PASSWORD environment variable must be set
-    - Kaggle authentication configured
+Snowflake's raw schema as-is, with only a small column name cleaning because Snowflake
+was having issues with some characters.
 """
 
 import os
 import re
-from pathlib import Path
-
 import kagglehub
 import pandas as pd
 import snowflake.connector
+from pathlib import Path
+from snowflake.connector import SnowflakeConnection
 from snowflake.connector.pandas_tools import write_pandas
 
 # Configuration
+# In a real project this should be in a configuration file
 SNOWFLAKE_CONFIG = {
     'account': os.getenv('SNOWFLAKE_ACCOUNT'),
     'user': os.getenv('SNOWFLAKE_USER'),
@@ -31,7 +28,7 @@ SNOWFLAKE_CONFIG = {
 }
 
 
-def download_dataset():
+def download_dataset() -> str:
     """
     Download e-commerce dataset from Kaggle using kagglehub.
 
@@ -42,7 +39,7 @@ def download_dataset():
     return path
 
 
-def get_csv_file(dataset_path):
+def get_csv_file(dataset_path: str) -> Path:
     """
     Locate the CSV file within the downloaded dataset directory.
 
@@ -64,7 +61,7 @@ def get_csv_file(dataset_path):
     return csv_files[0]
 
 
-def clean_column_name(col):
+def clean_column_name(col: str) -> str:
     """
     Minimal cleaning to make column names valid Snowflake identifiers.
     Removes all special characters that Snowflake doesn't accept.
@@ -85,15 +82,16 @@ def clean_column_name(col):
     return cleaned
 
 
-def load_raw_data(csv_path):
+def load_raw_data(csv_path: Path) -> pd.DataFrame:
     """
-    Load CSV data into a pandas DataFrame.
+    Load CSV data into a pandas DataFrame, clean column names for Snowflake,
+    and add an ingestion timestamp.
 
     Args:
         csv_path (Path): Path to the CSV file.
 
     Returns:
-        pd.DataFrame: Raw dataset with only column names cleaned for Snowflake.
+        pd.DataFrame: Raw dataset with cleaned column names and a LOADED_AT column.
     """
     df = pd.read_csv(csv_path)
 
@@ -114,12 +112,12 @@ def load_raw_data(csv_path):
     return df
 
 
-def create_raw_schema(conn):
+def create_raw_schema(conn: SnowflakeConnection) -> None:
     """
     Create the raw schema in Snowflake if it does not already exist.
 
     Args:
-        conn (snowflake.connector.SnowflakeConnection): Active Snowflake connection.
+        conn (SnowflakeConnection): Active Snowflake connection.
     """
     cursor = conn.cursor()
     try:
@@ -130,17 +128,22 @@ def create_raw_schema(conn):
         cursor.close()
 
 
-def upload_to_snowflake(conn, df, table_name):
+def upload_to_snowflake(conn: SnowflakeConnection, df: pd.DataFrame, table_name: str) -> bool:
     """
     Upload a DataFrame to Snowflake as a table in the raw schema.
 
     Args:
-        conn (snowflake.connector.SnowflakeConnection): Active Snowflake connection.
+        conn (SnowflakeConnection): Active Snowflake connection.
         df (pd.DataFrame): DataFrame to upload.
         table_name (str): Target table name in Snowflake.
 
     Returns:
         bool: True if upload succeeds, False otherwise.
+
+    Side Effects:
+        - Creates or overwrites a table in the Snowflake database/schema specified
+        in SNOWFLAKE_CONFIG.
+        - Modifies the remote Snowflake state by inserting rows into the target table.
     """
     success, nchunks, nrows, _ = write_pandas(
         conn=conn,
@@ -161,7 +164,7 @@ def upload_to_snowflake(conn, df, table_name):
     return success
 
 
-def main():
+def main() -> None:
     """
     Execute the complete ETL pipeline.
 
@@ -190,7 +193,8 @@ def main():
 
     # Connect to Snowflake
     conn = snowflake.connector.connect(**SNOWFLAKE_CONFIG)
-    print(f"Connected to Snowflake ({SNOWFLAKE_CONFIG['database']}.{SNOWFLAKE_CONFIG['schema']})")
+    print(f"Connected to Snowflake ("
+          f"{SNOWFLAKE_CONFIG['database']}.{SNOWFLAKE_CONFIG['schema']})")
 
     try:
         # Load data
