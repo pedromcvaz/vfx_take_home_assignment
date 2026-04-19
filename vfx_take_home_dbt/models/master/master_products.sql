@@ -7,30 +7,18 @@
     )
 }}
 
-with product_base as (
+with product_metrics as (
     select
         product_id,
-        category
-    from {{ ref('stg_ecommerce__transactions') }}
+        category,
+        coalesce(count(distinct s.transaction_id), 0)::number(38, 0) as times_sold,
+        coalesce(count(distinct s.user_id), 0)::number(38, 0) as unique_customers,
+        coalesce(avg(s.price), 0.0)::float as avg_price,  -- Default to 0 if no sales
+        coalesce(avg(s.discount_percentage), 0)::number(5, 2) as avg_discount_pct,
+        min(purchase_date) as first_sold_date,
+        max(purchase_date) as last_sold_date
+    from {{ ref('stg_ecommerce__transactions') }} s
     group by product_id, category
-),
-
-product_metrics as ( -- I've decided to add some metrics
-    select
-        p.product_id,
-        p.category,
-        count(distinct s.transaction_id)::number(38, 0) as times_sold,
-        count(distinct s.user_id)::number(38, 0) as unique_customers,
-        avg(s.price) as avg_price,
-        avg(s.discount_percentage) as avg_discount_pct,
-        min(s.purchase_date) as first_sold_date,
-        max(s.purchase_date) as last_sold_date
-    from product_base p
-    left join {{ ref('stg_ecommerce__transactions') }} s
-        on p.product_id = s.product_id
-    group by
-        p.product_id,
-        p.category
 ),
 
 product_master as (
@@ -47,13 +35,14 @@ product_master as (
         -- Product metrics.
         times_sold,
         unique_customers,
-        round(avg_price, 2)::float as avg_price,
-        round(avg_discount_pct, 2) as avg_discount_pct,
+        round(avg_price, 2)::number(18,2) as avg_price,
+        round(avg_discount_pct, 2)::number(38, 0) as avg_discount_pct,
         first_sold_date,
         last_sold_date,
 
         -- Metadata
         'RAW_ECOMMERCE_DATA' as source_system,
+        -- Columns for SCD2
         current_timestamp()::timestamp_ntz as dbt_valid_from,
         null::timestamp_ntz as dbt_valid_to,
         true as is_current

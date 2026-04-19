@@ -44,15 +44,15 @@ user_master as (
 
         -- Metadata
         'RAW_ECOMMERCE_DATA' as source_system,
-        last_loaded_at,
+        last_loaded_at::timestamp_ntz as last_loaded_at,
         -- I've added these as SCD2 support columns
         current_timestamp()::timestamp_ntz as dbt_valid_from,
-        null::timestamp as dbt_valid_to,
+        null::timestamp_ntz as dbt_valid_to,
         true as is_current,
 
         -- I've added these as GDPR support columns
         false as is_deleted,
-        null::timestamp as deleted_at,
+        null::timestamp_ntz as deleted_at,
         null::varchar as deleted_reason
 
     from user_transactions

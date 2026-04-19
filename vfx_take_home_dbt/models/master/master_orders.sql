@@ -9,10 +9,14 @@
 --                merge_update_columns = ['order_status', 'final_price', 'dbt_updated_at']
 --            )
 --        } }
--- 2. It might also be useful to have an incremental table that we could use to keep the orders history, but instead of
+-- 2. With the change above, it would be wise to change the join strategy in orders_enriched as orphan records could
+--    exist if the orders table is updated before the dimension tables or if there is late arriving to the dimension
+--    tables. With an inner join the build would fail and we would have to made user that the dim tables are updated
+--    before the fact table.
+-- 3. It might also be useful to have an incremental table that we could use to keep the orders history, but instead of
 --    having a merge strategy we would leave the default strategy of append.
--- 3. We could partition our orders master table by date as that way we could efficiently query our data
--- 4. If in our use case the order status could transition back and forward between status values, we could add an
+-- 4. We could partition our orders master table by date as that way we could efficiently query our data
+-- 5. If in our use case the order status could transition back and forward between status values, we could add an
 --    order_version column to our data to keep track of this for auditing purposes
 
 
@@ -92,13 +96,13 @@ orders_master as (
         product_category,
 
         -- Monetary values - Multi-currency support
-        price as original_price,
-        final_price as original_final_price,
-        discount_percentage,
+        price::number(18, 2) as original_price,
+        final_price::number(18, 2) as original_final_price,
+        discount_percentage::number(5, 2) as discount_percentage,
 
-        price_gbp,
-        final_price_gbp,
-        round(price_gbp - final_price_gbp, 2)::float as discount_amount_gbp,
+        price_gbp::number(18, 2) as price_gbp,
+        final_price_gbp::number(18, 2) as final_price_gbp,
+        round(price_gbp - final_price_gbp, 2)::number(18, 2) as discount_amount_gbp,
 
         -- Standardized currency for reporting
         'GBP' as reporting_currency,

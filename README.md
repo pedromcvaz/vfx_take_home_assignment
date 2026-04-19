@@ -51,8 +51,21 @@ dbt test
 ```
 
 # Seeds
-This project uses an exchange_rate seed to feed the macro `get_conversion_rate()` that should return the current USD→GBP rate.
+This project uses an exchange_rate seed to help convert current USD→GBP rate.
 
+__File__: `seeds/exchange_rates.csv`
+
+__Schema__:
+
+| currency_from | currency_to | rate | effective_date |
+|---------------|-------------|------|----------------|
+| USD           | GBP         | 0.79 | 2026-04-19     |
+
+# Macros
+- `get_conversion_rate()`: Queries the exchange_rates seed for the USD→GBP rate
+- `convert_amount (amount, rate)`: Multiplies amount by rate and rounds to 2 decimal places
+
+## Assumptions
 
 | Area | Assumption                                                                                                                                                                                                                                    |
 |------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -71,9 +84,17 @@ This project uses an exchange_rate seed to feed the macro `get_conversion_rate()
 
 ## Design choices
 
+### Data Types & Precision
+
+- __Currency fields__ (`price`, `final_price`, `price_gbp`, etc.): Use `number(18,2)` for exact decimal arithmetic, avoiding floating-point precision errors
+- __Counts__ (`total_orders`, `times_sold`): Use `number(38,0)` for large integers
+- __Percentages__ (`discount_percentage`): Use `number(5,2)` to store values 0.00–100.00
+- __Timestamps__: Use `timestamp_ntz` (no timezone) for consistency across all models
+
+
 ### 1- Staging Model (`stg_ecommerce__transactions`)
 - __Audit columns__: `loaded_at` (from source) and `dbt_processed_at` (current timestamp).
-- __Defensive filtering__: Only rows with non‑null `USER_ID`, `PRODUCT_ID`, `PURCHASE_DATE`, `FINAL_PRICE_RS` pass through.
+- __Defensive filtering__: Only rows with non‑null `USER_ID`, `PRODUCT_ID`, `PURCHASE_DATE`, `PRICE_RS`, `FINAL_PRICE_RS` pass through.
 
 ### 2. Master Users (`master_users`)
 

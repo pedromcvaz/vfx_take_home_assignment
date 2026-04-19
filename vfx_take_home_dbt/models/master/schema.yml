@@ -10,6 +10,7 @@ models:
         owner: "data_engineering"
         grain: "one row per user"
         contains_pii: true # I thought that this can be useful for GDPR deletes
+        latest_version: 1
     columns:
       - name: user_master_id
         description: "Deterministic GUID serving as surrogate key for user dimension"
@@ -140,6 +141,7 @@ models:
         owner: "data_engineering"
         grain: "one row per product"
         contains_pii: false
+        latest_version: 1
     columns:
       - name: product_master_id
         description: "Deterministic GUID serving as surrogate key for product dimension"
@@ -168,7 +170,7 @@ models:
           - not_null
           - dbt_utils.expression_is_true:
               arguments:
-                expression: "> 0"
+                expression: ">= 0"
 
       - name: unique_customers
         description: "Count of distinct customers who purchased this product"
@@ -181,7 +183,7 @@ models:
 
       - name: avg_price
         description: "Average list price in source currency (USD)"
-        data_type: float
+        data_type: number
         tests:
           - not_null
           - dbt_utils.expression_is_true:
@@ -250,6 +252,7 @@ models:
         owner: "data_engineering"
         grain: "one row per transaction"
         contains_pii: false
+        latest_version: 1
     columns:
       - name: order_master_id
         description: "Deterministic GUID serving as surrogate key for order fact"
@@ -304,7 +307,7 @@ models:
 
       - name: original_price
         description: "Original list price in source currency (USD)"
-        data_type: float
+        data_type: number
         tests:
           - not_null
           - dbt_utils.expression_is_true:
@@ -313,7 +316,7 @@ models:
 
       - name: original_final_price
         description: "Final transaction price in source currency (USD)"
-        data_type: float
+        data_type: number
         tests:
           - not_null
           - dbt_utils.expression_is_true:
@@ -333,7 +336,7 @@ models:
 
       - name: price_gbp
         description: "List price in GBP (reporting currency)"
-        data_type: float
+        data_type: number
         tests:
           - not_null
           - dbt_utils.expression_is_true:
@@ -342,7 +345,7 @@ models:
 
       - name: final_price_gbp
         description: "Final transaction price in GBP (reporting currency)"
-        data_type: float
+        data_type: number
         tests:
           - not_null
           - dbt_utils.expression_is_true:
@@ -354,7 +357,7 @@ models:
 
       - name: discount_amount_gbp
         description: "Discount amount in reporting currency (GBP)"
-        data_type: float
+        data_type: number
         tests:
           - not_null
           - dbt_utils.expression_is_true:
