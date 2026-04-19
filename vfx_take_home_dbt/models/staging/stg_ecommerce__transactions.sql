@@ -36,6 +36,7 @@ cleaned as (
         -- Product attributes
         trim(upper(PRODUCT_ID)) as product_id,
         -- Standardize category values
+        -- This could've been done with a macro where we would keep the value_mappings in a config/seed file and apply here
         case
             when CATEGORY = 'Beauty' then 'BEAUTY'
             when CATEGORY = 'Books' then 'BOOKS'
@@ -50,6 +51,7 @@ cleaned as (
         -- Transaction attributes
         try_to_date(PURCHASE_DATE, 'DD-MM-YYYY') as purchase_date, -- found this at https://docs.snowflake.com/en/sql-reference/functions/try_to_date
         -- Standardize payment method values
+        -- Again could've been done with a macro
         case
             when PAYMENT_METHOD = 'Cash on Delivery' then 'CASH_ON_DELIVERY'
             when PAYMENT_METHOD = 'Credit Card' then 'CREDIT_CARD'
