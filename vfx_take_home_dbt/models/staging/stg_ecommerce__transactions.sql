@@ -14,6 +14,7 @@ with source_data as (
     where USER_ID is not null
       and PRODUCT_ID is not null
       and PURCHASE_DATE is not null
+      and PRICE_RS is not null
       and FINAL_PRICE_RS is not null  -- Can't have a transaction without a price
 ),
 
@@ -47,14 +48,14 @@ cleaned as (
         end as category,
 
         -- Transaction attributes
-        to_date(PURCHASE_DATE, 'DD-MM-YYYY') as purchase_date,
-        -- Standardize category values
+        try_to_date(PURCHASE_DATE, 'DD-MM-YYYY') as purchase_date, -- found this at https://docs.snowflake.com/en/sql-reference/functions/try_to_date
+        -- Standardize payment method values
         case
             when PAYMENT_METHOD = 'Cash on Delivery' then 'CASH_ON_DELIVERY'
             when PAYMENT_METHOD = 'Credit Card' then 'CREDIT_CARD'
             when PAYMENT_METHOD = 'Debit Card' then 'DEBIT_CARD'
             when PAYMENT_METHOD = 'Net Banking' then 'NET_BANKING'
-            when PAYMENT_METHOD = 'UPI ' then 'UPI'
+            when PAYMENT_METHOD = 'UPI' then 'UPI'
             else trim(upper(PAYMENT_METHOD))
         end as payment_method,
 
