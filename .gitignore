@@ -1,0 +1,4 @@
+vfx_take_home_dbt/target/
+vfx_take_home_dbt/dbt_packages/
+vfx_take_home_dbt/logs/
+vfx_take_home_env

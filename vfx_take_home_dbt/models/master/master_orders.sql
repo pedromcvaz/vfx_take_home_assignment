@@ -19,7 +19,9 @@
 {{
     config(
         materialized='table',
-        latest_version=1
+        meta={
+            'latest_version': 1
+        }
     )
 }}
 
